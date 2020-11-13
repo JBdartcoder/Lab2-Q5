@@ -1,0 +1,96 @@
+import sympy as sym
+import control as ctrl
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Define all involved symbolic variables
+# constants
+M, m, g, ell = sym.symbols('M, m, g, ell', real=True, positive=True)
+
+# system variables
+x1, x2, x3, x4, F = sym.symbols('x1, x2, x3, x4, F')
+
+# Define φ
+phi = 4 * m * ell * x4**2 * sym.sin(x3) + 4 * F - 3 * m * g * sym.sin(x3) * sym.cos(x3)
+phi /= 4 * (M + m) - 3 * m * sym.cos(x3)**2
+
+# Define Ψ
+psi = -3 * (m * ell * x4**2 * sym.sin(x3) * sym.cos(x3) + F * sym.cos(x3) - (M + m) * g * sym.sin(x3))
+psi /= ell * (4 * (M + m) - 3 * m * sym.cos(x3)**2)
+
+# Define equilibrium points (all 0 in this case)
+F0 = 0
+x30 = 0
+x40 = 0
+
+
+# Implement function to take symbolic expression dependant on F, x3 & x4
+# and evaluate it at equilibrium points F0, x30, x40
+def evaluate_at_equilibrium(f):
+    return f.subs([(F, F0), (x3, x30), (x4, x40)])
+
+
+# Compute the derivatives of φ at the equilibrium point
+phi_deriv_F_at_equlibrium = evaluate_at_equilibrium(phi.diff(F))
+phi_deriv_x3_at_equlibrium = evaluate_at_equilibrium(phi.diff(x3))
+phi_deriv_x4_at_equlibrium = evaluate_at_equilibrium(phi.diff(x4))
+
+# Compute the derivatives of Ψ at the equilibrium point
+psi_deriv_F_at_equlibrium = evaluate_at_equilibrium(psi.diff(F))
+psi_deriv_x3_at_equlibrium = evaluate_at_equilibrium(psi.diff(x3))
+psi_deriv_x4_at_equlibrium = evaluate_at_equilibrium(psi.diff(x4))
+
+# Declare determined values of a-d
+a = phi_deriv_F_at_equlibrium
+b = -phi_deriv_x3_at_equlibrium
+c = -psi_deriv_F_at_equlibrium
+d = psi_deriv_x3_at_equlibrium
+
+# State values of given parameters
+M_value = 0.3
+m_value = 0.1
+ell_value = 0.35
+g_value = 9.81
+
+# Substitute values of the constants into the equations for a-d
+a_value = float(a.subs([(M, M_value), (m, m_value)]))
+b_value = float(b.subs([(M, M_value), (m, m_value), (g, g_value)]))
+c_value = float(c.subs([(M, M_value), (m, m_value), (g, g_value), (ell, ell_value)]))
+d_value = float(d.subs([(M, M_value), (m, m_value), (g, g_value), (ell, ell_value)]))
+
+
+# Declare the transfer function of G_theta
+# Determined in Q2
+G_theta = ctrl.TransferFunction([-c_value], [1, 0, -d_value])
+
+
+# Set up a PID controller
+def pid(kp, ki, kd):
+    # This function constructs the transfer function of a PID
+    # controller with given parameters
+    diff = ctrl.TransferFunction([1, 0], 1)
+    intgr = ctrl.TransferFunction(1, [1, 0])
+    pid_tf = (kp) + (kd * diff) + (ki * intgr)
+    return pid_tf
+
+
+# Define a PID including the values needed for rod to operate as requested
+kp1 = 155
+ki1 = 0.4
+kd1 = 8.5
+my_pid = -pid(kp1, ki1, kd1)
+
+# Connect the system and PID controller via closed loop feedback
+tf_d_to_theta = ctrl.feedback(G_theta, my_pid)
+
+t_final = 1     # Plot for 1s
+num_points = 500
+t_imp, theta_imp = ctrl.impulse_response(tf_d_to_theta, T=np.linspace(0, t_final, num_points))
+theta_imp_deg = np.rad2deg(theta_imp)   # Convert rads to degrees for user understanding
+
+# Plot trajectory in degrees
+plt.plot(t_imp, theta_imp_deg)
+plt.xlabel('Time (s)')
+plt.ylabel('Rod Angle, ${\\theta}$ (degrees)')
+plt.grid()
+plt.show()
